@@ -6,22 +6,54 @@
 #version         : 0.1    
 #==============================================================================
 #
+TIMESTAMP=$(date +%Y%m%d%H)
+MYNAME="$(basename $0)"
+SCHEMA="FULL"
+
+# prints the usage of the script
+usage() {
+    echo "Usage: " 
+    echo "$MYNAME [-s] [-h]"
+    exit 1
+}
+
 # Sets the ORACLE ENV Variables
-ORA_ENV="/etc/profile.d/oracle_env.sh"
-if [ -x "$ORA_ENV" ]
+ora_env() {
+  ORA_ENV="/u01/app/oracle/product/11.2.0/xe/bin/oracle_env.sh"
+  if [ -x "$ORA_ENV" ]
+  then
+    . ${ORA_ENV}
+  else
+    echo "Could not find Oracle Environment"
+    logger -s "$MYNAME - Could not set Oracle Environment"
+    exit 1
+  fi
+}
+
+while getopts :s:h opt
+do
+  case ${opt} in
+    s  ) $SCHEMA=$OPTARG;;
+    h  ) usage;;
+    \? ) logger -s "Invalid Option: -$OPTARG"
+         usage;;
+    :  ) logger -s "Invalid Option: -$OPTARG required an argument"
+         usage;;
+  esac
+done
+shift $((OPTIND -1))
+
+BKPFILE="$(hostname)_XE_${SCHEMA}_${TIMESTAMP}"
+
+if [ "$SCHEMA" == "FULL" ]
 then
- . ${ORA_ENV}
-
+  expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 else
- echo "Oracle environment may not be set, further commands may fail."
- echo "You have been warned."
-
+  expdp \"/ as sysdba\" SCHEMAS=$SCHEMA DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 fi
 
-TIMESTAMP=$(date +%Y%m%d%H)
-BKPFILE="$(hostname)_XE_FULL_${TIMESTAMP}"
-
 # Take  a full backup of oracle database
+#expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 
 # Find backup location and store it in a variable
