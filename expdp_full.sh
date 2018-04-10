@@ -33,7 +33,7 @@ ora_env() {
 while getopts :s:h opt
 do
   case ${opt} in
-    s  ) $SCHEMA=$OPTARG;;
+    s  ) SCHEMA=$OPTARG;;
     h  ) usage;;
     \? ) logger -s "Invalid Option: -$OPTARG"
          usage;;
@@ -47,14 +47,12 @@ BKPFILE="$(hostname)_XE_${SCHEMA}_${TIMESTAMP}"
 
 if [ "$SCHEMA" == "FULL" ]
 then
+  # Take a full backup or oracle database
   expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 else
-  expdp \"/ as sysdba\" SCHEMAS=$SCHEMA DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
+  # Take backup of specified schema
+  expdp \"/ as sysdba\" SCHEMAS=${SCHEMA} DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 fi
-
-# Take  a full backup of oracle database
-#expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
-expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
 
 # Find backup location and store it in a variable
 BKPLOCATION=$(sqlplus -s /nolog <<EOF
@@ -68,7 +66,7 @@ EOF
 
 if [ ! -z "$BKPLOCATION" ]
 then
-  find $BKPLOCATION -name *.DMP -name *.log -mtime +1 -exec ls -l {} \;
+  find $BKPLOCATION -name "*.DMP" -o -name "*.log" -mtime +1 -exec ls -l {} \;
   # Deleting files older than 1 day
   #find $BKPLOCATION -name *.DMP -name *.log -mtime +1 -exec rm -f {} \;
 else
