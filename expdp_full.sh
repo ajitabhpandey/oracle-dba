@@ -66,7 +66,7 @@ EOF
 
 if [ ! -z "$BKPLOCATION" ]
 then
-  find $BKPLOCATION -name "*.DMP" -o -name "*.log" -mtime +1 -exec ls -l {} \;
+  find $BKPLOCATION \( -name "*.DMP" -o -name "*.log" \) -mtime +1 -exec ls -l {} \;
   # Deleting files older than 1 day
   #find $BKPLOCATION -name *.DMP -name *.log -mtime +1 -exec rm -f {} \;
 else
