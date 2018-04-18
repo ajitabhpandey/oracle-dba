@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # purpose : Perform backup of Oracle Database using expdp.
 # author  :	ajitabhpandey@ajitabhpandey.info
 # history : 
@@ -9,7 +9,7 @@
 declare -r TMP_FILE_PREFIX=${TMPDIR:-/tmp}/prog.$$
 declare -r TIMESTAMP=$(date +%Y%m%d%H)
 declare -r MYNAME="$(basename $0)"
-declare -r SCHEMA="FULL"
+declare SCHEMA="FULL"
 
 # prints the usage of the script
 function usage() {
@@ -37,7 +37,7 @@ function cleanup() {
 # Sets the ORACLE ENV Variables
 function ora_env() {
   ORA_ENV="/u01/app/oracle/product/11.2.0/xe/bin/oracle_env.sh"
-  if [ -x "$ORA_ENV" ]; then
+  if [[ -x "$ORA_ENV" ]]; then
     . ${ORA_ENV}
   else
     echo "Could not find Oracle Environment"
@@ -69,7 +69,10 @@ function main() {
 
   declare -r BKPFILE="$(hostname)_XE_${SCHEMA}_${TIMESTAMP}"
 
-  if [ "$SCHEMA" == "FULL" ]; then
+  # set the oracle environment
+  ora_env
+
+  if [[ "$SCHEMA" = "FULL" ]]; then
     # Take a full backup or oracle database
     expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
   else
@@ -85,13 +88,17 @@ function main() {
   where directory_name='DATA_PUMP_DIR';
   exit;
 __EOF__
-  )
+)
 
-  if [ ! -z "$BKPLOCATION" ]; then
+  if [[ ! -z "$BKPLOCATION" ]]; then
+    # changing current directory to /tmp as find gives permission denied when running as sudo
+    # see this thread - https://stackoverflow.com/questions/5791651/find-is-returning-find-permission-denied-but-i-am-not-searching-in#
+    cd /tmp
     # Deleting files older than 1 day
     find $BKPLOCATION \( -name "*.DMP" -o -name "*.log" \) -mtime +1 -print -exec rm -f {} \;|logger -p user.info -t dpdump-cleanup
   else
     logger -p user.error -t dpdump-cleanup -s "Cleanup failed - BKPLOCATION variable is not set"
+  fi
 
   cleanup
 
