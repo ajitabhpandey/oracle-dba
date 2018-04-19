@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - Added the CHANGELOG.md file to keep track of changelog
 - xe_backup.sh - Fixed the script to cleanup old DMP and log files
+- temp_tablespace_usage.sh - Fixed column headings in the output
 ### Changed
 - Renamed expdp_full.sh to xe_backup.sh
 - Followed Google shell style guide (https://google.github.io/styleguide/shell.xml)
