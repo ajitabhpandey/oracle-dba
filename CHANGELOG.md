@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 ### Added
+- 
+### Changed
+- 
+### Removed
+- 
+
+## [0.2] - 2018-05-29
+### Added
 - Added the CHANGELOG.md file to keep track of changelog
 - xe_backup.sh - Fixed the script to cleanup old DMP and log files
 - temp_tablespace_usage.sh - Fixed column headings in the output
