@@ -8,7 +8,7 @@
 declare -r TMP_FILE_PREFIX=${TMPDIR:-/tmp}/prog.$$
 declare -r TIMESTAMP=$(date +%Y%m%d%H)
 declare -r MYNAME="$(basename $0)"
-declare -r BKPLOCATION="/u01/apex_app_backup"
+declare -r BKPLOCATION="/u01/app/oracle/apex_app_backup"
 declare APPID=""
 
 # prints the usage of the script
@@ -36,7 +36,7 @@ function cleanup() {
 }
 
 function create_backup_location() {
-    [[ -d $BKPLOCATION ]] | mkdir $BKPLOCATION
+    [[ -d $BKPLOCATION ]] || mkdir -p $BKPLOCATION
 }
 
 function main() {
@@ -61,15 +61,24 @@ function main() {
   shift $((OPTIND -1))
 
   # Check if required programs are installed
-  _check_required_programs logger sqlcl
+  _check_required_programs logger sql
+
+  # Create a backup location if it does not exists
+  create_backup_location
+
+  cd $BKPLOCATION
 
   # Backup the APEX application
-  $(sqlcl -s /nolog <<__EOF__
+  sql -s /nolog <<__EOF__
   connect / as sysdba
   set heading off;
-  set spool $BKPLOCATION/$APPID.sql;
-  apex export $APPID;
-  spool off;
+  apex export ${APPID};
   exit;
 __EOF__
-)
+}
+
+# set a trap for cleanup all before process termination by SIGHUBs
+trap "cleanup; exit 1" 1 2 3 13 15
+
+# call the main executable function
+main "$@"
