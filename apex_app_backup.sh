@@ -73,7 +73,6 @@ function main() {
   connect / as sysdba
   set heading off;
   apex export ${APPID};
-  exit;
 __EOF__
 }
 
