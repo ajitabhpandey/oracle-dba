@@ -1,14 +1,15 @@
 #!/bin/bash
-# purpose : Perform backup of Oracle Database using expdp.
+# purpose : Perform restore of Oracle Database using impdp. 
+# Backup must have been taken using associated backup script - xe_backup.sh
+# 
 # author  :	ajitabhpandey@ajitabhpandey.info
 # history : 
-#  0.1 on 2017-06-04
-#  0.2 on 2018-04-18
+#  0.1 on 2018-08-13
 #==============================================================================
 #
 declare -r TMP_FILE_PREFIX=${TMPDIR:-/tmp}/prog.$$
-declare -r TIMESTAMP=$(date +%Y%m%d%H)
 declare -r MYNAME="$(basename $0)"
+declare -r DPDUMP_PATH="/u01/app/oracle/admin/XE/dpdump/"
 declare SCHEMA="FULL"
 
 # prints the usage of the script
@@ -68,41 +69,43 @@ function main() {
   done
   shift $((OPTIND -1))
 
-  declare -r BKPFILE="$(hostname)_XE_${SCHEMA}_${TIMESTAMP}"
-
   # set the oracle environment
   ora_env
 
-  _check_required_programs expdp find logger sqlplus
+  # Check if required programs are installed
+  _check_required_programs logger impdp find sort head sed
 
-  if [[ "$SCHEMA" = "FULL" ]]; then
-    # Take a full backup or oracle database
-    expdp \"/ as sysdba\" FULL=Y DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
-  else
-    # Take backup of specified schema
-    expdp \"/ as sysdba\" SCHEMAS=${SCHEMA} DIRECTORY=DATA_PUMP_DIR DUMPFILE=${BKPFILE}.DMP LOGFILE=${BKPFILE}.log
+  # Restore the latest full dump first
+  declare -r FULL_BKPFILE=$(find ${DPDUMP_PATH} -name *_FULL_*.DMP -type f| sort -r -t_ -k 4|head -1|sed 's#.*/##')
+  echo ${FULL_BKPFILE}
+
+  logger -p user.info -s "Restoring full backup using ${FULL_BKPFILE}"
+  impdp system DIRECTORY=DATA_PUMP_DIR DUMPFILE=${FULL_BKPFILE} LOGFILE=${FULL_BKPFILE}.log TABLE_EXISTS_ACTION=REPLACE
+
+  if [[ "$SCHEMA" != "FULL" ]]; then
+    # Find latest schema backup available for the desired schema
+    declare -r SCHEMA_BKPFILE=$(find ${DPDUMP_PATH} -name *_${SCHEMA}_*.DMP -type f| sort -r -t_ -k 4|head -1|sed 's#.*/##')
+    echo ${SCHEMA_BKPFILE}
+
+    # Validate if this latest schema backfile file was created after full backup
+    declare -r TS_FULL_BKPFILE=$(echo ${FULL_BKPFILE} | cut -d_ -f 4 | sed 's/.DMP$//')
+    declare -r TS_SCHEMA_BKPFILE=$(echo ${SCHEMA_BKPFILE} | cut -d_ -f 4 | sed 's/.DMP$//')
+
+    echo ${TS_FULL_BKPFILE}
+    echo ${TS_SCHEMA_BKPFILE}
+
+    if [[ ${TS_SCHEMA_BKPFILE} -ge ${TS_FULL_BKPFILE} ]]; then
+      # Restore schema backup
+      echo "Restoring Schema Backup using ${SCHEMA_BKPFILE} as schema backup is latest"
+      logger -p user.info -s "Restoring backup for ${SCHEMA} using ${SCHEMA_BKPFILE}"
+      impdp system DIRECTORY=DATA_PUMP_DIR DUMPFILE=${SCHEMA_BKPFILE} LOGFILE=${SCHEMA_BKPFILE}.log TABLE_EXISTS_ACTION=REPLACE
+    else
+      echo "Full backup is the latest, not restoring the schema backup"
+      logger -p user.info -s "Full backup is the latest, not restoring the schema backup"
+    fi
   fi
 
-  # Find backup location and store it in a variable
-  BKPLOCATION=$(sqlplus -s /nolog <<__EOF__
-  connect / as sysdba
-  set heading off;
-  select directory_path "Backup Location" from all_directories
-  where directory_name='DATA_PUMP_DIR';
-  exit;
-__EOF__
-)
-
-  if [[ ! -z "$BKPLOCATION" ]]; then
-    # changing current directory to /tmp as find gives permission denied when running as sudo
-    # see this thread - https://stackoverflow.com/questions/5791651/find-is-returning-find-permission-denied-but-i-am-not-searching-in#
-    cd /tmp
-    # Deleting files older than 1 day
-    find $BKPLOCATION \( -name "*.DMP" -o -name "*.log" \) -mtime +1 -print -exec rm -f {} \;|logger -p user.info -t dpdump-cleanup
-  else
-    logger -p user.error -t dpdump-cleanup -s "Cleanup failed - BKPLOCATION variable is not set"
-  fi
-
+  # Cleanup the temporary file
   cleanup
 
   exit 0
